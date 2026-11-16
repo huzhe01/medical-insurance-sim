@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="按江西九江、河南开封的医保参数，模拟退休后职工医保与居民医保的自付差别，以及加买惠民保前后多大的医疗账单会花光积蓄。">
+<title>九江开封医保击穿点</title>
+<style>html{color-scheme:light}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* 布局：单列长页，先结论后推导；图表成对并排（九江 | 开封），窄屏堆叠 */
+:root{
+  --bg:#f3f5f8; --surface:#ffffff; --fg:#141a22; --muted:#5a6473; --line:#dde2ea; --soft:#eef1f6;
+  --emp:#2a78d6; --res:#eb6834; --warn:#b4540a;
+  --sans:-apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",sans-serif;
+  --num:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#13161b; --surface:#1b1f26; --fg:#e8ecf2; --muted:#a0a9b7; --line:#2d333d; --soft:#232831;
+  --emp:#3987e5; --res:#e2703f; --warn:#f0a35c; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#13161b; --surface:#1b1f26; --fg:#e8ecf2; --muted:#a0a9b7; --line:#2d333d; --soft:#232831;
+  --emp:#3987e5; --res:#e2703f; --warn:#f0a35c; color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:15px;line-height:1.65}
+.wrap{max-width:1080px;margin:0 auto;padding-block:28px 56px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  display:flex;flex-direction:column;gap:36px}
+h1{font-size:clamp(24px,4vw,34px);line-height:1.25;margin:0;text-wrap:balance;letter-spacing:-.01em}
+h2{font-size:20px;margin:0;text-wrap:balance}
+h3{font-size:15px;margin:0}
+p{margin:0;max-width:44em}
+.lede{color:var(--muted);font-size:16px}
+section{display:flex;flex-direction:column;gap:14px}
+.num{font-variant-numeric:tabular-nums}
+.pair{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:16px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:0;display:flex;flex-direction:column;gap:10px}
+.kpis{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.kpi b{display:block;font-size:24px;line-height:1.15;font-variant-numeric:tabular-nums}
+.kpi span{color:var(--muted);font-size:13px}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:baseline}
+.dot.emp{background:var(--emp)} .dot.res{background:var(--res)}
+.controls{display:flex;flex-wrap:wrap;gap:14px 24px;align-items:center;background:var(--soft);border-radius:10px;padding:12px 16px}
+.controls label{color:var(--muted);font-size:13px;margin-right:8px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{font:inherit;font-size:14px;padding:6px 12px;border:0;background:transparent;color:var(--fg);cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--fg);color:var(--surface)}
+input[type=number]{font:inherit;width:5.5em;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--fg)}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--emp);outline-offset:2px}
+.scroll{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{padding:10px 12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
+tr:last-child td{border-bottom:0}
+thead th{background:var(--soft);font-size:13px;white-space:nowrap}
+tbody th{font-weight:600;color:var(--muted);min-width:9em}
+td{min-width:8.5em}
+td .v{font-variant-numeric:tabular-nums;font-weight:600}
+td .p{color:var(--muted);font-size:12px;margin-left:6px;font-variant-numeric:tabular-nums}
+.bar{height:6px;border-radius:3px;margin-top:6px;min-width:2px}
+.bar.emp{background:var(--emp)} .bar.res{background:var(--res)}
+.chart{position:relative}
+.chart svg{display:block;width:100%}
+.tip{position:absolute;top:8px;pointer-events:none;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12.5px;line-height:1.5;box-shadow:0 4px 14px rgba(0,0,0,.12);white-space:nowrap;font-variant-numeric:tabular-nums}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13.5px}
+.legend b{font-variant-numeric:tabular-nums}
+.note{color:var(--muted);font-size:13.5px}
+.flag{color:var(--warn);font-weight:600}
+ol,ul{margin:0;padding-left:1.3em;max-width:46em} li{margin:4px 0}
+.formula{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 18px}
+a{color:var(--emp)}
+.dash{display:inline-block;width:22px;border-top:2px dashed var(--muted);vertical-align:middle;margin-right:6px}
+.solid{display:inline-block;width:22px;border-top:2px solid var(--muted);vertical-align:middle;margin-right:6px}
+</style>
+
+<div class="wrap">
+  <header style="display:flex;flex-direction:column;gap:10px">
+    <h1>退休后，多大的医疗账单会花光 <span id="hS">50</span> 万积蓄</h1>
+    <p class="lede">按江西九江、河南开封两地现行医保参数模拟：60 岁已退休，积蓄年利息 2%，生活费由养老金负担，积蓄只用来看病。大病按在本市三级医院治疗计算。</p>
+  </header>
+
+  <div class="controls">
+    <div><label for="sv">积蓄（万元）</label><input id="sv" type="number" min="5" max="500" step="5" value="50"></div>
+    <div><label id="al">大病目录外自费占比</label>
+      <span class="seg" role="group" aria-labelledby="al" id="alpha">
+        <button data-a="0.1">10%</button><button data-a="0.2">20%</button><button data-a="0.25">25%</button><button data-a="0.3">30%</button><button data-a="0.4">40%</button>
+      </span></div>
+    <div><label id="hl">下方表格和余额图</label>
+      <span class="seg" role="group" aria-labelledby="hl" id="hm"><button data-h="0">只有医保</button><button data-h="1">加买惠民保</button></span></div>
+    <span class="note">目录外 = 医保不报的进口药、耗材等，占比越高自付越多</span>
+  </div>
+
+  <section>
+    <h2>结论：加买惠民保后，击穿点提高到多少</h2>
+    <div class="pair" id="kpis"></div>
+    <p class="note" id="kpiNote"></p>
+  </section>
+
+  <section>
+    <h2>加买惠民保之后能扛多大的病</h2>
+    <p class="note">每格大字是加买惠民保后的个人自付，小字是只有医保时的自付；色条是自付占积蓄的比例，满格就是击穿。</p>
+    <div class="scroll"><table id="hmt"></table></div>
+    <div class="scroll"><table>
+      <thead><tr><th>惠民保条款</th><th>九江惠民保（2025 版）</th><th>中原医惠保（河南全省可买）<span class="flag">†</span></th></tr></thead>
+      <tbody>
+        <tr><th>保费</th><td>约 100 元/年 <span class="flag">†</span></td><td>89 元/年</td></tr>
+        <tr><th>目录内自付</th><td>免赔 1.5 万；10 万以内赔 65%，10 万以上赔 85%；保额 100 万 <span class="flag">†</span></td><td>免赔 2 万；赔 90%；保额 100 万</td></tr>
+        <tr><th>目录外自费</th><td>免赔 2.5 万；20 万以内赔 55%，20–50 万赔 75%，50 万以上赔 85%；保额 100 万 <span class="flag">†</span></td><td>免赔 2 万；赔 50%；保额 100 万</td></tr>
+        <tr><th>特药（未计入模型）</th><td>18 种高额药品，0 免赔，赔 80%，保额 100 万</td><td>院外抗癌特药，0 免赔，赔 80%，保额 100 万</td></tr>
+        <tr><th>既往症</th><td>相关费用只赔 20%（2024 版条款）</td><td>特定既往症的相关费用不赔</td></tr>
+      </tbody></table></div>
+    <ul class="note">
+      <li><b>既往症是最大的折扣。</b>上面的数字按没有既往症计算。60 岁以后投保，如果此前已有肿瘤、心脑血管病、肾病等，相关费用九江只赔 20%，河南不赔，击穿点会退回到接近只有医保的水平。</li>
+      <li>惠民保一年一保，条款每年调整，产品也可能停售；不像医保那样有长期承诺。</li>
+      <li>目录外责任通常只赔住院期间的合规费用，院外自购药、门诊自费一般不算；未备案的异地就医，中原医惠保只赔 40%。</li>
+      <li><span class="flag">†</span> 九江的保费取自 2024 版（2025 版称价格不变），两项保额各 100 万是按"最高保额 300 万"推断的。开封没有查到市级惠民保，这里用河南全省的中原医惠保 2021–2022 年条款，2026 年是否在售、条款是否变化没有核实。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>六个看病情景，各自要掏多少 <span class="note" id="scenTag"></span></h2>
+    <p class="note">每格是一年内的个人自付，括号内是自付占总费用的比例；色条按同一行最大值缩放。小病按基层门诊、普通住院按二级医院、其余按三级医院计算。</p>
+    <div class="scroll"><table id="scen"></table></div>
+  </section>
+
+  <section>
+    <h2>自付随账单增长的曲线</h2>
+    <p class="note"><span class="solid"></span>只有医保　<span class="dash"></span>加买惠民保。横轴是一年内的总医疗费，纵轴是个人自付。曲线越过虚线（积蓄）就是击穿。曲线变陡的位置是报销封顶。把鼠标移到图上可读数。</p>
+    <div class="pair" id="curves"></div>
+  </section>
+
+  <section>
+    <h2>击穿点对目录外占比的敏感度 <span class="note" id="thrTag"></span></h2>
+    <div class="scroll"><table id="thr"></table></div>
+    <p class="note" id="thrNote"></p>
+  </section>
+
+  <section>
+    <h2>60–85 岁积蓄余额 <span class="note" id="pathTag"></span></h2>
+    <p class="note"><span class="solid"></span>每年只有 3000 元基层门诊　<span class="dash"></span>68–70 岁癌症（25+12+12 万）并且 78 岁重症 60 万。封顶线按年重置，所以分年治疗比一年花完自付少。</p>
+    <div class="pair" id="paths"></div>
+  </section>
+
+  <section>
+    <h2>两地医保参数</h2>
+    <div class="scroll"><table>
+      <thead><tr><th></th><th><span class="dot emp"></span>九江 职工（退休）</th><th><span class="dot res"></span>九江 居民</th><th><span class="dot emp"></span>开封 职工（退休）</th><th><span class="dot res"></span>开封 居民</th></tr></thead>
+      <tbody>
+        <tr><th>每年个人缴费</th><td>0</td><td>400 元</td><td>180 元（大额补充保险）<span class="flag">†</span></td><td>410 元（含长护险 10 元）</td></tr>
+        <tr><th>个人账户划入</th><td>约 900 元/年 <span class="flag">†</span></td><td>无</td><td>约 900 元/年 <span class="flag">†</span></td><td>无</td></tr>
+        <tr><th>基层普通门诊</th><td>年起付 300 元，报 70%，年限额 3000 元</td><td>不设起付线，报 65%</td><td>不设起付线，报 70%，年限额 1500 元</td><td>不设起付线，报 60%，年限额 440 元</td></tr>
+        <tr><th>住院 二级医院</th><td>起付 500 元，报 90%</td><td>起付 400 元，报 80% <span class="flag">†</span></td><td>起付 900 元，报 92%</td><td>起付 900 元，报 70%</td></tr>
+        <tr><th>住院 三级医院</th><td>起付 800 元，报 85%</td><td>起付 600 元，报 60% <span class="flag">†</span></td><td>起付 1200 元，报 90%</td><td>起付 1200 元，报 60%</td></tr>
+        <tr><th>基本医保年封顶</th><td>10 万</td><td>10 万 <span class="flag">†</span></td><td>12 万</td><td>15 万</td></tr>
+        <tr><th>二次报销</th><td>大病保险：超封顶部分报 90%，最高再付 40 万</td><td>大病保险：政策内自付超 17121 元的部分报 60%，最高付 30 万 <span class="flag">†</span></td><td>大额补充保险：超封顶部分报 90%，最高再付 42 万</td><td>大病保险：政策内自付 1.1–10 万报 60%，10 万以上报 70%，最高付 40 万</td></tr>
+        <tr><th>医保一年最多付</th><td>50 万</td><td>40 万</td><td>54 万</td><td>55 万</td></tr>
+      </tbody></table></div>
+    <p class="note"><span class="flag">†</span> 这些数字没有查到官方原文，来自二手来源或是我的估算：九江居民住院起付线、比例、封顶线和大病保险的 17121 元与 30 万来自一篇引用赣医保发〔2024〕7 号的媒体汇总（九江市文件只确认了 60% 的比例）；个人账户划入额是估算；开封退休人员是否仍需缴 180 元大额保险费未确认。办理前请以当地医保局为准。</p>
+  </section>
+
+  <section>
+    <h2>推导方法</h2>
+    <div class="formula"><ol>
+      <li>政策内费用 = 总费用 ×（1 − 目录外占比）</li>
+      <li>基本医保支付 = min［（政策内费用 − 起付线）× 报销比例，年封顶线］</li>
+      <li>二次报销：职工 =（政策内费用 − 封顶线对应的费用）× 90%；居民 =（政策内自付 − 起付线）× 60%–70%。两者都有上限</li>
+      <li>个人自付 = 总费用 − 基本医保支付 − 二次报销</li>
+      <li>击穿点：令个人自付 = 积蓄，反解总费用。两层都封顶后，击穿点 = 积蓄 + 医保一年最多付的钱</li>
+    </ol></div>
+    <h3>这个模型没算的</h3>
+    <ul class="note">
+      <li>去省会或外省治疗：异地就医起付线更高、比例更低，三四线城市的大病患者常遇到，实际自付会比这里高。</li>
+      <li>居民养老金通常远低于职工养老金。如果要靠积蓄补生活费，居民医保一侧会更早击穿。</li>
+      <li>门诊慢特病、特药、医疗救助等额外待遇，以及医疗费逐年上涨。</li>
+      <li>职工医保退休不缴费的前提是缴满当地规定年限。</li>
+    </ul>
+    <h3>参数来源</h3>
+    <ul class="note">
+      <li>九江职工住院与大病：<a href="https://www.jiujiang.gov.cn/fdzdxxgk/10/zfgb_1/2021n/jjsrmzfgb2021nd2q/szfbwj_165205/202511/t20251105_7050219.html">九江市政府办公室通知</a>、<a href="https://m.jj.bendibao.com/live/9181.shtm">九江本地宝</a></li>
+      <li>江西职工门诊统筹：<a href="http://ybj.jiangxi.gov.cn/jxsylbzj/col/col27597/content/content_1965643907931512832.html">江西省医保局解读</a>、<a href="https://www.gongqing.gov.cn/ylbzj/02/fgzc/zcwj/202605/t20260506_7232699.html">共青城市政策汇编</a></li>
+      <li>江西居民医保：<a href="https://www.nhsa.gov.cn/art/2024/12/24/art_14_15221.html">国家医保局转载的江西居民政策</a>、<a href="https://www.pengze.gov.cn/ylbzj/fdzdgknr_171600/ylbx/202505/t20250512_6909779.html">九医保发〔2024〕6 号</a>、<a href="https://news.qq.com/rain/a/20250812A07A7A00">媒体汇总（二手）</a></li>
+      <li>惠民保：<a href="https://www.jxcn.cn/system/2025/01/20/020764678.shtml">九江惠民保 2025 上线报道</a>、<a href="https://ybj.jiujiang.gov.cn/zmhd/hygq/zdhy/202405/t20240523_6554470.html">九江市医保局：惠浔保怎么保障</a>、<a href="https://m.jj.bendibao.com/live/7135.shtm">九江本地宝</a>、<a href="https://4g.dahe.cn/jr/20211220939099">大河网：中原医惠保上线</a>、<a href="https://zhuanlan.zhihu.com/p/487735658">中原医惠保条款解读（二手）</a></li>
+      <li>开封职工与居民：<a href="https://www.kfzlyy.com/006_zhinan.html">开封市肿瘤医院医保须知</a>、<a href="http://www.hdyfy.cn/guide/detail/id/8562.html">河南大学第一附属医院待遇清单</a>、<a href="https://m.kf.bendibao.com/live/23052.shtm">开封本地宝（居民住院）</a>、<a href="https://m.kf.bendibao.com/live/15131.shtm">开封本地宝（职工门诊）</a></li>
+    </ul>
+  </section>
+</div>
+
+<script id="model">
+const RATE = 0.02;
+const CITIES = {
+  jj: { city: '九江',
+    emp: { premium: 0, growth: 0, account: 900, op: { d: 300, r: .70, cap: 3000 },
+           ip: { 2: { d: 500, r: .90 }, 3: { d: 800, r: .85 } }, cap: 1e5,
+           second: { type: 'excess', r: .90, cap: 4e5 } },
+    res: { premium: 400, growth: 20, account: 0, op: { d: 0, r: .65, cap: Infinity },
+           ip: { 2: { d: 400, r: .80 }, 3: { d: 600, r: .60 } }, cap: 1e5,
+           second: { type: 'burden', t: 17121, tiers: [[Infinity, .60]], cap: 3e5 } },
+    hmb: { name: '九江惠民保', premium: 100, in: { d: 15000, tiers: [[1e5, .65], [Infinity, .85]], cap: 1e6 },
+           out: { d: 25000, tiers: [[2e5, .55], [5e5, .75], [Infinity, .85]], cap: 1e6 } } },
+  kf: { city: '开封',
+    emp: { premium: 180, growth: 0, account: 900, op: { d: 0, r: .70, cap: 1500 },
+           ip: { 2: { d: 900, r: .92 }, 3: { d: 1200, r: .90 } }, cap: 1.2e5,
+           second: { type: 'excess', r: .90, cap: 4.2e5 } },
+    res: { premium: 410, growth: 20, account: 0, op: { d: 0, r: .60, cap: 440 },
+           ip: { 2: { d: 900, r: .70 }, 3: { d: 1200, r: .60 } }, cap: 1.5e5,
+           second: { type: 'burden', t: 11000, tiers: [[1e5, .60], [Infinity, .70]], cap: 4e5 } },
+    hmb: { name: '中原医惠保', premium: 89, in: { d: 20000, tiers: [[Infinity, .90]], cap: 1e6 },
+           out: { d: 20000, tiers: [[Infinity, .50]], cap: 1e6 } } },
+};
+const KINDS = { emp: '职工医保（退休）', res: '居民医保' };
+const SCEN = [ // 名称, 说明, 年总费用, 目录外占比, 类型, 医院级别
+  ['小病门诊', '基层门诊，一年 3 千', 3000, .10, 'op'],
+  ['门诊较多', '基层门诊，一年 8 千', 8000, .10, 'op'],
+  ['普通住院', '肺炎、胆囊手术，二级医院 1 万', 1e4, .10, 'ip', 2],
+  ['较大手术', '心脏支架、关节置换，三级医院 6 万', 6e4, .15, 'ip', 3],
+  ['癌症首年', '手术+化疗+靶向，三级医院 25 万', 25e4, .25, 'ip', 3],
+  ['重症', 'ICU、多线抗癌，三级医院 60 万', 60e4, .30, 'ip', 3],
+];
+const EVENTS = { 68: [25e4, .25], 69: [12e4, .25], 70: [12e4, .25], 78: [60e4, .30] };
+
+function outpatient(cost, a, p) {
+  const pay = Math.min(Math.max(cost * (1 - a) - p.op.d, 0) * p.op.r, p.op.cap);
+  return cost - pay;
+}
+function tiered(x, tiers) { let pay = 0, prev = 0; for (const [up, rate] of tiers) { if (x > prev) pay += (Math.min(x, up) - prev) * rate; prev = up; } return pay; }
+// h = 惠民保：对医保报销后的目录内自付、目录外自费分别扣免赔额、分段赔付、各自封顶
+function inpatient(cost, a, p, lv = 3, h = null) {
+  const e = cost * (1 - a), { d, r } = p.ip[lv];
+  const base = Math.min(Math.max(e - d, 0) * r, p.cap);
+  let s = 0;
+  if (p.second.type === 'excess') {
+    s = Math.max(e - (d + p.cap / r), 0) * p.second.r;
+  } else {
+    const b = e - base; let prev = p.second.t;
+    for (const [up, rate] of p.second.tiers) { if (b > prev) s += (Math.min(b, up) - prev) * rate; prev = up; }
+  }
+  s = Math.min(s, p.second.cap);
+  let hp = 0;
+  if (h) hp = Math.min(tiered(e - base - s - h.in.d, h.in.tiers), h.in.cap) + Math.min(tiered(cost * a - h.out.d, h.out.tiers), h.out.cap);
+  return cost - base - s - hp;
+}
+function solve(target, a, p, h = null) { // 自付随总费用单调递增，二分
+  let lo = 0, hi = 5e7;
+  for (let i = 0; i < 70; i++) { const m = (lo + hi) / 2; inpatient(m, a, p, 3, h) < target ? lo = m : hi = m; }
+  return lo;
+}
+function scenOop(s, p, h = null) { return s[4] === 'op' ? outpatient(s[2], s[3], p) : inpatient(s[2], s[3], p, s[5], h); }
+function path(p, savings, events, h = null) {
+  let s = savings; const out = [];
+  for (let age = 60; age <= 85; age++) {
+    out.push([age, s]);
+    let spend = (h ? h.premium : 0) + p.premium + p.growth * (age - 60) + Math.max(outpatient(3000, .10, p) - p.account, 0);
+    if (events[age]) spend += inpatient(events[age][0], events[age][1], p, 3, h);
+    s = s * (1 + RATE) - spend;
+  }
+  return out;
+}
+if (typeof module !== 'undefined') module.exports = { CITIES, SCEN, EVENTS, inpatient, outpatient, solve, scenOop, path };
+</script>
+
+<script>
+const $ = id => document.getElementById(id);
+const state = { S: 50e4, a: 0.25, h: true };
+const wan = (v, d = 1) => (v / 1e4).toFixed(d);
+const money = v => v < 1e4 ? Math.round(v).toLocaleString('en-US') + ' 元' : wan(v, 2) + ' 万';
+const each = fn => Object.entries(CITIES).flatMap(([ck, c]) => ['emp', 'res'].map(k => fn(c, k, ck)));
+
+function niceStep(range, n) {
+  const raw = range / n, mag = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / mag;
+  return (f < 1.5 ? 1 : f < 3.5 ? 2 : f < 7.5 ? 5 : 10) * mag;
+}
+// 通用折线图：series=[{k:'emp'|'res',dash,pts:[[x,y]]}]，单位由调用方换算好
+function lineChart(el, o) {
+  const w = Math.max(el.clientWidth, 280), h = 300, m = { l: 44, r: 14, t: 12, b: 36 };
+  const X = v => m.l + (v - o.x0) / (o.x1 - o.x0) * (w - m.l - m.r);
+  const Y = v => h - m.b - (v - o.y0) / (o.y1 - o.y0) * (h - m.t - m.b);
+  let g = '';
+  const ys = niceStep(o.y1 - o.y0, 5), xs = niceStep(o.x1 - o.x0, w < 420 ? 4 : 7);
+  for (let v = Math.ceil(o.y0 / ys) * ys; v <= o.y1 + 1e-9; v += ys)
+    g += `<line x1="${m.l}" x2="${w - m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)" stroke-width="${v === 0 ? 1.5 : 1}"/><text x="${m.l - 8}" y="${Y(v) + 4}" text-anchor="end" fill="var(--muted)" font-size="12">${Math.round(v)}</text>`;
+  for (let v = Math.ceil(o.x0 / xs) * xs; v <= o.x1 + 1e-9; v += xs)
+    g += `<text x="${X(v)}" y="${h - m.b + 18}" text-anchor="middle" fill="var(--muted)" font-size="12">${Math.round(v)}</text>`;
+  g += `<text x="${w - m.r}" y="${h - 4}" text-anchor="end" fill="var(--muted)" font-size="12">${o.xlabel}</text>`;
+  if (o.hline != null) g += `<line x1="${m.l}" x2="${w - m.r}" y1="${Y(o.hline)}" y2="${Y(o.hline)}" stroke="var(--fg)" stroke-width="1" stroke-dasharray="5 4"/><text x="${m.l + 6}" y="${Y(o.hline) - 6}" fill="var(--fg)" font-size="12">${o.hlabel}</text>`;
+  for (const [vx, t] of o.vmarks || []) g += `<line x1="${X(vx)}" x2="${X(vx)}" y1="${m.t}" y2="${h - m.b}" stroke="var(--line)" stroke-dasharray="2 3"/><text x="${X(vx) + 4}" y="${m.t + 10}" fill="var(--muted)" font-size="11.5">${t}</text>`;
+  const clipId = 'c' + Math.random().toString(36).slice(2);
+  g += `<clipPath id="${clipId}"><rect x="${m.l}" y="${m.t}" width="${w - m.l - m.r}" height="${h - m.t - m.b}" fill="none"/></clipPath><g clip-path="url(#${clipId})">`;
+  for (const s of o.series) g += `<polyline fill="none" stroke="var(--${s.k})" stroke-width="2.2" stroke-linejoin="round" ${s.dash ? 'stroke-dasharray="7 5"' : ''} points="${s.pts.map(p => X(p[0]).toFixed(1) + ',' + Y(p[1]).toFixed(1)).join(' ')}"/>`;
+  g += '</g>';
+  for (const p of o.points || []) if (p.x <= o.x1) g += `<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="5.5" fill="var(--${p.k})" stroke="var(--surface)" stroke-width="2"/>`;
+  g += `<line class="ch" y1="${m.t}" y2="${h - m.b}" stroke="var(--muted)" stroke-width="1" visibility="hidden"/>`;
+  el.innerHTML = `<svg viewBox="0 0 ${w} ${h}" height="${h}" role="img" aria-label="${o.aria}">${g}</svg><div class="tip" hidden></div>`;
+  const svg = el.firstChild, tip = el.lastChild, ch = svg.querySelector('.ch'), ref = o.series[0].pts;
+  svg.addEventListener('pointermove', e => {
+    const r = svg.getBoundingClientRect(), px = (e.clientX - r.left) / r.width * w;
+    const xv = o.x0 + (px - m.l) / (w - m.l - m.r) * (o.x1 - o.x0);
+    let i = 0; for (let j = 1; j < ref.length; j++) if (Math.abs(ref[j][0] - xv) < Math.abs(ref[i][0] - xv)) i = j;
+    const cx = X(ref[i][0]); ch.setAttribute('x1', cx); ch.setAttribute('x2', cx); ch.setAttribute('visibility', 'visible');
+    tip.innerHTML = o.tip(i); tip.hidden = false;
+    const left = cx / w * r.width; tip.style.left = (left > r.width / 2 ? left - tip.offsetWidth - 10 : left + 10) + 'px';
+  });
+  svg.addEventListener('pointerleave', () => { tip.hidden = true; ch.setAttribute('visibility', 'hidden'); });
+}
+
+function render() {
+  const { S, a, h } = state;
+  $('hS').textContent = +(S / 1e4).toFixed(0);
+  document.querySelectorAll('#alpha button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.a === a));
+  document.querySelectorAll('#hm button').forEach(b => b.setAttribute('aria-pressed', (b.dataset.h === '1') === h));
+  const H = c => h ? c.hmb : null, tag = h ? '（已加惠民保）' : '（未买惠民保）';
+  const thr = {}, thrH = {};
+  each((c, k, ck) => { thr[ck + k] = solve(S, a, c[k]); thrH[ck + k] = solve(S, a, c[k], c.hmb); });
+  const cols = each((c, k, ck) => ({ c, k, ck }));
+  const head = cols.map(x => `<th><i class="dot ${x.k}"></i>${x.c.city} ${x.k === 'emp' ? '职工' : '居民'}</th>`).join('');
+
+  // 结论
+  $('kpis').innerHTML = Object.entries(CITIES).map(([ck, c]) => `<div class="panel"><h3>${c.city}</h3><div class="kpis">${['emp', 'res'].map(k =>
+    `<div class="kpi"><span><i class="dot ${k}"></i>${KINDS[k]}</span><b>${wan(thr[ck + k], 0)} → ${wan(thrH[ck + k], 0)} 万</b><span>只有医保 → 加买${c.hmb.name}</span></div>`).join('')}</div></div>`).join('');
+  $('kpiNote').textContent = '箭头左边是只有医保，右边是加买惠民保，按没有既往症的人计算。击穿点大幅提高，是因为超出医保封顶线的费用和目录外自费，惠民保还能各赔最高 100 万。';
+
+  // 惠民保对比表
+  const bills = [['癌症首年 25 万', 25e4, .25], ['重症 60 万', 60e4, .30], ['一年 100 万', 100e4, a], ['一年 200 万', 200e4, a], ['一年 300 万', 300e4, a]];
+  $('hmt').innerHTML = `<thead><tr><th>加买惠民保后的个人自付</th>${head}</tr></thead><tbody>` +
+    `<tr><th>击穿点<div class="note" style="font-weight:400">花光 ${wan(S, 0)} 万的一年总医疗费</div></th>${cols.map(x => `<td><span class="v">${wan(thrH[x.ck + x.k], 0)} 万</span><div class="p" style="margin:0">只有医保 ${wan(thr[x.ck + x.k], 0)} 万</div></td>`).join('')}</tr>` +
+    bills.map(([n, cost, al]) => `<tr><th>${n}<div class="note" style="font-weight:400">目录外占 ${Math.round(al * 100)}%</div></th>${cols.map(x => { const v0 = inpatient(cost, al, x.c[x.k]), v1 = inpatient(cost, al, x.c[x.k], 3, x.c.hmb);
+      return `<td><span class="v">${wan(v1)} 万</span><div class="p" style="margin:0">只有医保 ${wan(v0)} 万</div><div class="bar ${x.k}" style="width:${Math.min(v1 / S * 100, 100).toFixed(1)}%"></div></td>`; }).join('')}</tr>`).join('') + '</tbody>';
+
+  // 情景表
+  $('scenTag').textContent = tag;
+  $('scen').innerHTML = `<thead><tr><th>情景</th>${head}</tr></thead><tbody>` +
+    SCEN.map(s => { const vs = cols.map(x => scenOop(s, x.c[x.k], H(x.c))), mx = Math.max(...vs);
+      return `<tr><th>${s[0]}<div class="note" style="font-weight:400">${s[1]}</div></th>${vs.map((v, i) =>
+        `<td><span class="v">${money(v)}</span><span class="p">${Math.round(v / s[2] * 100)}%</span><div class="bar ${cols[i].k}" style="width:${(v / mx * 100).toFixed(1)}%"></div></td>`).join('')}</tr>`; }).join('') + '</tbody>';
+
+  // 曲线：实线只有医保，虚线加惠民保
+  const xmax = Math.ceil(Math.max(...Object.values(thrH)) * 1.1 / 2e5) * 20, ymax = Math.ceil(S * 1.5 / 1e5) * 10, N = 240;
+  $('curves').innerHTML = Object.entries(CITIES).map(([ck, c]) => `<div class="panel"><h3>${c.city}</h3><div class="legend">${['emp', 'res'].map(k =>
+    `<span><i class="dot ${k}"></i>${KINDS[k]}　击穿点 <b>${wan(thr[ck + k], 0)} 万</b>，加惠民保 <b>${wan(thrH[ck + k], 0)} 万</b></span>`).join('')}</div><div class="chart" id="cv-${ck}"></div></div>`).join('');
+  for (const [ck, c] of Object.entries(CITIES)) {
+    const series = [null, c.hmb].flatMap(hh => ['emp', 'res'].map(k => ({ k, dash: !!hh, pts: Array.from({ length: N + 1 }, (_, i) => [i * xmax / N, inpatient(i * xmax / N * 1e4, a, c[k], 3, hh) / 1e4]) })));
+    lineChart($('cv-' + ck), { x0: 0, x1: xmax, y0: 0, y1: ymax, series, xlabel: '一年总医疗费（万元）', hline: S / 1e4, hlabel: `积蓄 ${wan(S, 0)} 万`,
+      aria: `${c.city}：个人自付随总医疗费变化`, points: ['emp', 'res'].flatMap(k => [{ k, x: thr[ck + k] / 1e4, y: S / 1e4 }, { k, x: thrH[ck + k] / 1e4, y: S / 1e4 }]),
+      tip: i => `总费用 <b>${series[0].pts[i][0].toFixed(0)} 万</b><br>` + series.map(s => `<i class="dot ${s.k}"></i>${s.k === 'emp' ? '职工' : '居民'}${s.dash ? '+惠民保' : ''} 自付 ${s.pts[i][1].toFixed(1)} 万`).join('<br>') });
+  }
+
+  // 阈值表
+  const al = [.1, .2, .3, .4];
+  $('thrTag').textContent = tag;
+  $('thr').innerHTML = `<thead><tr><th>花光 ${wan(S, 0)} 万的总医疗费</th>${head}</tr></thead><tbody>` +
+    al.map(x => `<tr><th>目录外 ${x * 100}%</th>${cols.map(q => `<td><span class="v">${wan(solve(S, x, q.c[q.k], H(q.c)), 0)} 万</span></td>`).join('')}</tr>`).join('') +
+    `<tr><th>只用一年利息 ${wan(S * RATE)} 万能付的账单（目录外 ${Math.round(a * 100)}%）</th>${cols.map(q => `<td><span class="v">${wan(solve(S * RATE, a, q.c[q.k], H(q.c)), 2)} 万</span></td>`).join('')}</tr></tbody>`;
+  $('thrNote').textContent = h
+    ? '加买惠民保后，击穿点随目录外占比变化明显：目录内和目录外各有 100 万保额，目录外占比越高，赔付比例较低的那一边负担越重。只靠利息能付的账单没有变化，因为那个量级还没过惠民保的免赔额。'
+    : '目录外占比较低时击穿点不变，因为两层报销都已封顶，击穿点 = 积蓄 + 医保一年最多付的钱。开封居民医保的年度总限额（55 万）略高于职工（54 万），所以极端情况下击穿点反而略高，但击穿之前居民一直掏得更多。';
+
+  // 多年路径
+  $('pathTag').textContent = tag;
+  $('paths').innerHTML = Object.entries(CITIES).map(([ck, c]) => `<div class="panel"><h3>${c.city}</h3><div class="chart" id="pt-${ck}"></div><div class="legend" id="pl-${ck}"></div></div>`).join('');
+  const all = {}; let lo = 0, hi = 0;
+  for (const [ck, c] of Object.entries(CITIES)) { all[ck] = ['emp', 'res'].flatMap(k => [{ k, pts: path(c[k], S, {}, H(c)).map(p => [p[0], p[1] / 1e4]) }, { k, dash: true, pts: path(c[k], S, EVENTS, H(c)).map(p => [p[0], p[1] / 1e4]) }]);
+    for (const s of all[ck]) for (const p of s.pts) { lo = Math.min(lo, p[1]); hi = Math.max(hi, p[1]); } }
+  const y0 = Math.floor(lo / 10) * 10, y1 = Math.ceil(hi / 10) * 10;
+  for (const [ck, c] of Object.entries(CITIES)) {
+    const series = all[ck], name = s => (s.k === 'emp' ? '职工' : '居民') + (s.dash ? '·两次大病' : '·只有小病');
+    lineChart($('pt-' + ck), { x0: 60, x1: 85, y0, y1, series, xlabel: '年龄', vmarks: [[68, '癌症'], [78, '重症']], aria: `${c.city}：60 到 85 岁积蓄余额`,
+      tip: i => `<b>${series[0].pts[i][0]} 岁</b><br>` + series.map(s => `<i class="dot ${s.k}"></i>${name(s)} ${s.pts[i][1].toFixed(1)} 万`).join('<br>') });
+    $('pl-' + ck).innerHTML = '85 岁余额：' + series.map(s => `<span><i class="dot ${s.k}"></i>${name(s)} <b>${s.pts[25][1].toFixed(0)} 万</b></span>`).join('');
+  }
+}
+
+$('alpha').addEventListener('click', e => { if (e.target.dataset.a) { state.a = +e.target.dataset.a; render(); } });
+$('hm').addEventListener('click', e => { if (e.target.dataset.h) { state.h = e.target.dataset.h === '1'; render(); } });
+$('sv').addEventListener('input', e => { const v = +e.target.value; if (v >= 5 && v <= 500) { state.S = v * 1e4; render(); } });
+let rt; new ResizeObserver(() => { clearTimeout(rt); rt = setTimeout(render, 120); }).observe($('curves'));
+render();
+</script>
+</body>
+</html>
